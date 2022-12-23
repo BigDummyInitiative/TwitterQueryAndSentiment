@@ -1,9 +1,14 @@
 import tweepy
-import time
-import pandas as pd
-from pandas import DataFrame
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+
+rate_limit_window = 15 * 60
+
+rate_limit = 450
+
+request_interval = rate_limit_window / rate_limit
+
+request_count = 0
 
 api_key = 'tZynA4YovEjcErk7VzxiTYfH3'
 api_secret = 'n5cC4ufuSFUpFwBqAN42AmxFCxtL4VYVEh7n7p3i5319wYiFN5'
@@ -19,41 +24,20 @@ user_pin
 auth.get_access_token(user_pin)
 api = tweepy.API(auth)
 
-tweets_3_months = api.search_full_archive(label='dev',
-                                          query='@TO_WinterOps',
-                                          fromDate="202201010000",
-                                          toDate="202203310000",
-                                          maxResults=100
-                                          )
+start_date = datetime.strptime('2022-12-22', '%Y-%m-%d')
+end_date = datetime.strptime('2022-12-29', '%Y-%m-%d')
 
-min_date = (str(tweets_3_months[-1].created_at)[0:10]).replace('-', '')+'0000'
-
+tweets = api.search_tweets(q='pokemon', lang='en',
+                           result_type="popular", tweet_mode="extended", count=10)
 all_mentions = []
-all_mentions.extend(tweets_3_months)
-while True:
-    tweets_3_months = api.search_full_archive(label='dev',
-                                              query='@TO_WinterOps',
-                                              fromDate="202201010000",
-                                              toDate=min_date,
-                                              maxResults=100
-                                              )
-    if len(tweets_3_months) == 0:
-        break
 
-    min_date = (str(tweets_3_months[-1].created_at)
-                [0:10]).replace('-', '')+'0000'
-    print(min_date)
-    all_mentions.extend(tweets_3_months)
-    print('Number of tweets in all_mentions dataframe: {}'.format(len(all_mentions)))
-
-    mentions_tweets = [[info.id,
-                        info.created_at,
-                        info.favorite_count,
-                        info.retweet_count,
-                        info.text.encode("utf-8").decode("utf-8"),
-                        info.entities,
-                        info.user.screen_name]
-                       for idx, info in enumerate(all_mentions)]
-mentions_df = DataFrame(mentions_tweets, columns=[
-                        "id", "created_at", "favorite_count", "retweet_count", "text", "entities", "screen_name"])
-mentions_df.head()
+for tweet in tweets:
+    created_at = tweet.created_at.astimezone(timezone.utc).replace(tzinfo=None)
+    if created_at >= start_date and created_at < end_date:
+        all_mentions.append({
+            'text': tweet.full_text,
+            'screen_name': tweet.user.screen_name,
+            'likes_count': tweet.favorite_count,
+            'retweets_count': tweet.retweet_count
+        })
+print(all_mentions)
